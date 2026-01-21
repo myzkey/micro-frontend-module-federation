@@ -1,24 +1,25 @@
 import { useState, useEffect } from 'react'
-import { useGlobalStore, type Message } from '@mf/shared'
+import { useGlobalStore, api, type Message } from '@mf/shared'
 
 interface Todo {
   id: number
   text: string
   completed: boolean
-  source?: 'local' | 'event'
+  source?: 'local' | 'event' | 'api'
 }
 
 const Badge = ({
   variant,
   children,
 }: {
-  variant: 'props' | 'event' | 'zustand'
+  variant: 'props' | 'event' | 'zustand' | 'api'
   children: React.ReactNode
 }) => {
   const colors = {
     props: 'bg-badge-props',
     event: 'bg-badge-event',
     zustand: 'bg-badge-zustand',
+    api: 'bg-blue-500',
   }
   return (
     <span
@@ -30,51 +31,82 @@ const Badge = ({
 }
 
 function App() {
-  const [todos, setTodos] = useState<Todo[]>([
-    { id: 1, text: 'Learn Micro Frontends', completed: false, source: 'local' },
-    {
-      id: 2,
-      text: 'Build with Module Federation',
-      completed: true,
-      source: 'local',
-    },
-  ])
+  const [todos, setTodos] = useState<Todo[]>([])
   const [input, setInput] = useState('')
   const [zustandMsg, setZustandMsg] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [apiError, setApiError] = useState<string | null>(null)
 
   const { globalUser, messages, addMessage } = useGlobalStore()
 
+  // APIからTodo取得
   useEffect(() => {
-    const handler = (e: CustomEvent<{ text: string }>) => {
-      setTodos((prev) => [
-        ...prev,
-        { id: Date.now(), text: e.detail.text, completed: false, source: 'event' },
-      ])
+    const fetchTodos = async () => {
+      try {
+        const data = await api.getTodos()
+        setTodos(data.map((t) => ({ ...t, source: 'api' as const })))
+        setApiError(null)
+      } catch {
+        setApiError('API接続エラー - APIサーバーを起動してください')
+      } finally {
+        setLoading(false)
+      }
     }
-    window.addEventListener('mf:add-todo', handler as EventListener)
-    return () => window.removeEventListener('mf:add-todo', handler as EventListener)
+    fetchTodos()
   }, [])
 
-  const addTodo = () => {
+  // Custom Event をリッスン
+  useEffect(() => {
+    const handler = async (e: Event) => {
+      const customEvent = e as CustomEvent<{ text: string }>
+      try {
+        const newTodo = await api.createTodo(customEvent.detail.text)
+        setTodos((prev) => [...prev, { ...newTodo, source: 'event' }])
+      } catch {
+        // API失敗時はローカルに追加
+        setTodos((prev) => [
+          ...prev,
+          { id: Date.now(), text: customEvent.detail.text, completed: false, source: 'event' },
+        ])
+      }
+    }
+    window.addEventListener('mf:add-todo', handler)
+    return () => window.removeEventListener('mf:add-todo', handler)
+  }, [])
+
+  const addTodo = async () => {
     if (input.trim()) {
-      setTodos([
-        ...todos,
-        { id: Date.now(), text: input, completed: false, source: 'local' },
-      ])
+      try {
+        const newTodo = await api.createTodo(input)
+        setTodos([...todos, { ...newTodo, source: 'api' }])
+      } catch {
+        setTodos([...todos, { id: Date.now(), text: input, completed: false, source: 'local' }])
+      }
       setInput('')
     }
   }
 
-  const toggleTodo = (id: number) => {
+  const toggleTodo = async (id: number) => {
+    const todo = todos.find((t) => t.id === id)
+    if (!todo) return
+
+    try {
+      await api.updateTodo(id, { completed: !todo.completed })
+    } catch {
+      // APIエラーは無視
+    }
     setTodos(
-      todos.map((todo) =>
-        todo.id === id ? { ...todo, completed: !todo.completed } : todo
-      )
+      todos.map((t) => (t.id === id ? { ...t, completed: !t.completed } : t))
     )
   }
 
-  const deleteTodo = (id: number) => {
-    setTodos(todos.filter((todo) => todo.id !== id))
+  const deleteTodo = async (id: number) => {
+    try {
+      await api.deleteTodo(id)
+    } catch {
+      // APIエラーは無視
+    }
+    setTodos(todos.filter((t) => t.id !== id))
   }
 
   const sendViaZustand = () => {
@@ -100,6 +132,7 @@ function App() {
       <div className="bg-white rounded-lg p-8 shadow border-l-4 border-l-remote2">
         <h2 className="text-remote2 text-xl font-bold mb-2">
           Remote App 2 - Todo List
+          <Badge variant="api">API</Badge>
         </h2>
 
         {globalUser && (
@@ -109,9 +142,15 @@ function App() {
           </p>
         )}
 
-        <p className="text-gray-500 mb-6">
-          This component is loaded from another micro frontend.
+        <p className="text-gray-500 mb-4">
+          This component uses Hono API + libsql + Drizzle.
         </p>
+
+        {apiError && (
+          <div className="bg-red-100 text-red-700 px-3 py-2 rounded mb-4 text-sm">
+            {apiError}
+          </div>
+        )}
 
         <div className="flex gap-2 mb-4">
           <input
@@ -130,35 +169,40 @@ function App() {
           </button>
         </div>
 
-        <ul className="list-none p-0">
-          {todos.map((todo) => (
-            <li
-              key={todo.id}
-              className="flex items-center gap-2 py-2 border-b border-gray-100"
-            >
-              <input
-                type="checkbox"
-                checked={todo.completed}
-                onChange={() => toggleTodo(todo.id)}
-                className="cursor-pointer"
-              />
-              <span
-                className={`flex-1 flex items-center ${
-                  todo.completed ? 'line-through text-gray-400' : 'text-gray-800'
-                }`}
+        {loading ? (
+          <p className="text-gray-400 text-center py-4">Loading...</p>
+        ) : (
+          <ul className="list-none p-0">
+            {todos.map((todo) => (
+              <li
+                key={todo.id}
+                className="flex items-center gap-2 py-2 border-b border-gray-100"
               >
-                {todo.source === 'event' && <Badge variant="event">Event</Badge>}
-                {todo.text}
-              </span>
-              <button
-                className="bg-transparent border-none text-gray-400 cursor-pointer text-lg hover:text-gray-600"
-                onClick={() => deleteTodo(todo.id)}
-              >
-                x
-              </button>
-            </li>
-          ))}
-        </ul>
+                <input
+                  type="checkbox"
+                  checked={todo.completed}
+                  onChange={() => toggleTodo(todo.id)}
+                  className="cursor-pointer"
+                />
+                <span
+                  className={`flex-1 flex items-center ${
+                    todo.completed ? 'line-through text-gray-400' : 'text-gray-800'
+                  }`}
+                >
+                  {todo.source === 'event' && <Badge variant="event">Event</Badge>}
+                  {todo.source === 'api' && <Badge variant="api">DB</Badge>}
+                  {todo.text}
+                </span>
+                <button
+                  className="bg-transparent border-none text-gray-400 cursor-pointer text-lg hover:text-gray-600"
+                  onClick={() => deleteTodo(todo.id)}
+                >
+                  x
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {/* Zustand セクション */}
         <div className="mt-6 pt-4 border-t border-gray-200">
