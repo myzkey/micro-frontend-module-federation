@@ -1,0 +1,14 @@
+{
+  "name": "micro-frontend-monorepo",
+  "private": true,
+  "scripts": {
+    "dev": "pnpm -r --parallel dev",
+    "build": "pnpm -r build",
+    "dev:host": "pnpm --filter @mf/host dev",
+    "dev:remote1": "pnpm --filter @mf/remote1 dev",
+    "dev:remote2": "pnpm --filter @mf/remote2 dev"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
