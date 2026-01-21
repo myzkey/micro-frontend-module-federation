@@ -124,8 +124,88 @@ function App() {
 `packages/shared` にはモノレポ内で共有するコンポーネントやユーティリティを配置:
 
 ```ts
-import { Button, formatDate } from '@mf/shared'
+import { Button, formatDate, useGlobalStore } from '@mf/shared'
 ```
+
+## マイクロフロントエンド間のデータ共有
+
+3つの方法を実装しています。UIのバッジで共有方法が識別できます。
+
+| バッジ | 色 | 方法 | 用途 |
+|--------|------|------|------|
+| `PROPS` | 緑 | Props | 親→子へのデータ渡し |
+| `EVENT` | 紫 | Custom Events | アプリ間の直接通信 |
+| `ZUSTAND` | オレンジ | Zustand | グローバル状態管理 |
+
+### 1. Props（親→子）
+
+ホストからリモートコンポーネントにpropsを渡す:
+
+```tsx
+// Host
+<Remote1App userName="Taro" onCountChange={handleCountChange} />
+
+// Remote1
+function App({ userName, onCountChange }: AppProps) {
+  // userName: ホストから受け取ったデータ
+  // onCountChange: ホストへのコールバック
+}
+```
+
+### 2. Custom Events（アプリ間直接通信）
+
+ブラウザのイベントシステムを使用してアプリ間で直接通信:
+
+```tsx
+// Remote1: イベント送信
+window.dispatchEvent(
+  new CustomEvent('mf:add-todo', { detail: { text: 'New todo' } })
+)
+
+// Remote2: イベント受信
+useEffect(() => {
+  const handler = (e: CustomEvent) => {
+    console.log(e.detail.text)
+  }
+  window.addEventListener('mf:add-todo', handler)
+  return () => window.removeEventListener('mf:add-todo', handler)
+}, [])
+```
+
+### 3. Zustand（グローバル状態管理）
+
+全アプリで共有するグローバルストア。`window` オブジェクトにアタッチしてシングルトン化:
+
+```ts
+// packages/shared/src/stores/global-store.ts
+const createStore = () => create<GlobalState>((set) => ({
+  globalUser: null,
+  messages: [],
+  // ...
+}))
+
+// シングルトンパターン
+export const useGlobalStore =
+  window.__MF_GLOBAL_STORE__ ?? (window.__MF_GLOBAL_STORE__ = createStore())
+```
+
+```tsx
+// 各アプリで使用
+import { useGlobalStore } from '@mf/shared'
+
+function App() {
+  const { globalUser, messages, addMessage } = useGlobalStore()
+  // 全アプリで同じストアを参照
+}
+```
+
+### データ共有方法の比較
+
+| 方法 | 方向 | リアルタイム | 用途 |
+|------|------|-------------|------|
+| Props | 一方向（親→子） | ○ | 設定値、コールバック |
+| Custom Events | 双方向 | ○ | 特定イベントの通知 |
+| Zustand | 双方向 | ○ | グローバル状態、ユーザー情報 |
 
 ## 本番デプロイ
 
@@ -145,4 +225,5 @@ remotes: {
 - **ビルドツール**: Vite
 - **フレームワーク**: React 18
 - **Module Federation**: @originjs/vite-plugin-federation
+- **状態管理**: Zustand
 - **言語**: TypeScript

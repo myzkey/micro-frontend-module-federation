@@ -1,7 +1,11 @@
 /// <reference types="vite/client" />
 
 declare module 'remote1/App' {
-  const Component: React.ComponentType
+  interface Remote1Props {
+    userName?: string
+    onCountChange?: (count: number) => void
+  }
+  const Component: React.ComponentType<Remote1Props>
   export default Component
 }
 
