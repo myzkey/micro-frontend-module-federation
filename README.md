@@ -36,25 +36,34 @@ pnpm build
 
 ## 起動方法
 
-### プレビューモード（本番ビルドの確認）
+### プレビューモード（推奨）
+
+Module Federation の `remoteEntry.js` はビルド時に生成されるため、**ビルド後にプレビューモードで起動**するのが基本です。
 
 ```bash
-# 全アプリを並列起動
-pnpm -r --parallel preview
+# ビルド → プレビュー
+pnpm build && pnpm preview
 ```
 
-### 開発モード
+### Watch モード（開発時）
+
+ファイル変更時に自動でリビルドする方法:
 
 ```bash
-# ターミナル1
-pnpm dev:remote1
+# ターミナル1: ファイル変更を監視してリビルド
+pnpm watch
 
-# ターミナル2
-pnpm dev:remote2
-
-# ターミナル3
-pnpm dev:host
+# ターミナル2: プレビューサーバー起動
+pnpm preview
 ```
+
+ファイルを編集すると自動でリビルドされ、ブラウザをリロードすれば反映されます。
+
+### 注意事項
+
+- `@originjs/vite-plugin-federation` は HMR（Hot Module Replacement）を完全にはサポートしていない
+- リモートアプリの変更後はブラウザのリロードが必要
+- `vite dev` は `remoteEntry.js` を生成しないため、Module Federation の動作確認には使用不可
 
 ## Module Federation の仕組み
 
