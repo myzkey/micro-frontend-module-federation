@@ -8,7 +8,8 @@
     "watch": "pnpm -r --parallel watch",
     "dev:host": "pnpm --filter @mf/host dev",
     "dev:remote1": "pnpm --filter @mf/remote1 dev",
-    "dev:remote2": "pnpm --filter @mf/remote2 dev"
+    "dev:remote2": "pnpm --filter @mf/remote2 dev",
+    "dev:api": "pnpm --filter @mf/api dev"
   },
   "engines": {
     "node": ">=18"

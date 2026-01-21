@@ -9,7 +9,8 @@ micro-frontend/
 ├── apps/
 │   ├── host/          # ホストアプリ (シェル)
 │   ├── remote1/       # リモートアプリ1 - カウンター
-│   └── remote2/       # リモートアプリ2 - Todoリスト
+│   ├── remote2/       # リモートアプリ2 - Todoリスト
+│   └── api/           # APIサーバー (Hono + libsql + Drizzle)
 ├── packages/
 │   └── shared/        # 共有ライブラリ
 ├── package.json
@@ -23,12 +24,16 @@ micro-frontend/
 | host | 3000 | ホストアプリ（シェル） |
 | remote1 | 3001 | カウンター機能 |
 | remote2 | 3002 | Todoリスト機能 |
+| api | 3003 | APIサーバー |
 
 ## セットアップ
 
 ```bash
 # 依存関係のインストール
 pnpm install
+
+# データベースのマイグレーション
+pnpm --filter @mf/api db:migrate
 
 # 全アプリをビルド
 pnpm build
@@ -41,7 +46,10 @@ pnpm build
 Module Federation の `remoteEntry.js` はビルド時に生成されるため、**ビルド後にプレビューモードで起動**するのが基本です。
 
 ```bash
-# ビルド → プレビュー
+# ターミナル1: APIサーバー起動
+pnpm dev:api
+
+# ターミナル2: ビルド → プレビュー
 pnpm build && pnpm preview
 ```
 
@@ -50,10 +58,13 @@ pnpm build && pnpm preview
 ファイル変更時に自動でリビルドする方法:
 
 ```bash
-# ターミナル1: ファイル変更を監視してリビルド
+# ターミナル1: APIサーバー起動
+pnpm dev:api
+
+# ターミナル2: ファイル変更を監視してリビルド
 pnpm watch
 
-# ターミナル2: プレビューサーバー起動
+# ターミナル3: プレビューサーバー起動
 pnpm preview
 ```
 
@@ -207,6 +218,90 @@ export default {
 - **独立ビルド**: 各アプリが独立して Tailwind をビルド可能
 - **拡張性**: アプリ固有のスタイルも追加可能
 
+## API サーバー (Hono + libsql + Drizzle)
+
+マイクロフロントエンドと連携するAPIサーバーを実装。
+
+### 構成
+
+```
+apps/api/
+├── src/
+│   ├── index.ts            # Hono サーバー
+│   └── db/
+│       ├── schema.ts       # Drizzle スキーマ
+│       ├── client.ts       # libsql クライアント
+│       └── migrate.ts      # マイグレーション実行
+├── drizzle/                # マイグレーションファイル
+├── data/                   # SQLite DB (gitignore)
+└── drizzle.config.ts
+```
+
+### API エンドポイント
+
+| Method | Path | 説明 |
+|--------|------|------|
+| GET | `/todos` | Todo一覧取得 |
+| POST | `/todos` | Todo作成 |
+| PATCH | `/todos/:id` | Todo更新 |
+| DELETE | `/todos/:id` | Todo削除 |
+| GET | `/messages` | メッセージ一覧 |
+| POST | `/messages` | メッセージ作成 |
+| DELETE | `/messages` | 全メッセージ削除 |
+
+### データベーススキーマ
+
+```ts
+// apps/api/src/db/schema.ts
+export const todos = sqliteTable('todos', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  text: text('text').notNull(),
+  completed: integer('completed', { mode: 'boolean' }).notNull().default(false),
+  createdAt: text('created_at').notNull(),
+})
+
+export const messages = sqliteTable('messages', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  text: text('text').notNull(),
+  from: text('from', { enum: ['host', 'remote1', 'remote2'] }).notNull(),
+  createdAt: text('created_at').notNull(),
+})
+```
+
+### フロントエンドとの連携
+
+`packages/shared/src/api/client.ts` に API クライアントを配置:
+
+```ts
+import { api } from '@mf/shared'
+
+// Todo操作
+const todos = await api.getTodos()
+const newTodo = await api.createTodo('New task')
+await api.updateTodo(1, { completed: true })
+await api.deleteTodo(1)
+
+// メッセージ操作
+const messages = await api.getMessages()
+await api.createMessage('Hello', 'host')
+await api.clearMessages()
+```
+
+Remote2 (Todo List) が API と連携し、データが SQLite に永続化されます。
+
+### Drizzle コマンド
+
+```bash
+# マイグレーションファイル生成
+pnpm --filter @mf/api db:generate
+
+# マイグレーション実行
+pnpm --filter @mf/api db:migrate
+
+# Drizzle Studio（DB GUI）
+pnpm --filter @mf/api db:studio
+```
+
 ## マイクロフロントエンド間のデータ共有
 
 3つの方法を実装しています。UIのバッジで共有方法が識別できます。
@@ -307,4 +402,7 @@ remotes: {
 - **Module Federation**: @originjs/vite-plugin-federation
 - **状態管理**: Zustand
 - **スタイリング**: Tailwind CSS (共有 preset パターン)
+- **API**: Hono
+- **データベース**: libsql (SQLite互換)
+- **ORM**: Drizzle
 - **言語**: TypeScript
