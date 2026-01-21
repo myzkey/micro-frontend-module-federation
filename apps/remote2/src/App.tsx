@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useGlobalStore } from '@mf/shared'
+import { useGlobalStore, type Message } from '@mf/shared'
 
 interface Todo {
   id: number
@@ -8,38 +8,45 @@ interface Todo {
   source?: 'local' | 'event'
 }
 
-const Badge = ({ color, children }: { color: string; children: React.ReactNode }) => (
-  <span
-    style={{
-      background: color,
-      color: 'white',
-      fontSize: '0.65rem',
-      padding: '0.15rem 0.4rem',
-      borderRadius: '3px',
-      fontWeight: 'bold',
-      textTransform: 'uppercase',
-      marginRight: '0.5rem',
-    }}
-  >
-    {children}
-  </span>
-)
+const Badge = ({
+  variant,
+  children,
+}: {
+  variant: 'props' | 'event' | 'zustand'
+  children: React.ReactNode
+}) => {
+  const colors = {
+    props: 'bg-badge-props',
+    event: 'bg-badge-event',
+    zustand: 'bg-badge-zustand',
+  }
+  return (
+    <span
+      className={`${colors[variant]} text-white text-[0.65rem] px-2 py-0.5 rounded font-bold uppercase mr-2`}
+    >
+      {children}
+    </span>
+  )
+}
 
 function App() {
   const [todos, setTodos] = useState<Todo[]>([
     { id: 1, text: 'Learn Micro Frontends', completed: false, source: 'local' },
-    { id: 2, text: 'Build with Module Federation', completed: true, source: 'local' },
+    {
+      id: 2,
+      text: 'Build with Module Federation',
+      completed: true,
+      source: 'local',
+    },
   ])
   const [input, setInput] = useState('')
   const [zustandMsg, setZustandMsg] = useState('')
 
-  // Zustand Store
   const { globalUser, messages, addMessage } = useGlobalStore()
 
-  // Custom Event をリッスン
   useEffect(() => {
     const handler = (e: CustomEvent<{ text: string }>) => {
-      setTodos(prev => [
+      setTodos((prev) => [
         ...prev,
         { id: Date.now(), text: e.detail.text, completed: false, source: 'event' },
       ])
@@ -50,24 +57,26 @@ function App() {
 
   const addTodo = () => {
     if (input.trim()) {
-      setTodos([...todos, { id: Date.now(), text: input, completed: false, source: 'local' }])
+      setTodos([
+        ...todos,
+        { id: Date.now(), text: input, completed: false, source: 'local' },
+      ])
       setInput('')
     }
   }
 
   const toggleTodo = (id: number) => {
     setTodos(
-      todos.map(todo =>
+      todos.map((todo) =>
         todo.id === id ? { ...todo, completed: !todo.completed } : todo
       )
     )
   }
 
   const deleteTodo = (id: number) => {
-    setTodos(todos.filter(todo => todo.id !== id))
+    setTodos(todos.filter((todo) => todo.id !== id))
   }
 
-  // Zustand 経由でメッセージ送信
   const sendViaZustand = () => {
     if (zustandMsg.trim()) {
       addMessage(zustandMsg, 'remote2')
@@ -75,66 +84,74 @@ function App() {
     }
   }
 
-  const getFromColor = (from: string) => {
+  const getFromColor = (from: Message['from']) => {
     switch (from) {
-      case 'host': return '#1a1a2e'
-      case 'remote1': return '#3498db'
-      case 'remote2': return '#e74c3c'
-      default: return '#666'
+      case 'host':
+        return { border: 'border-l-host', text: 'text-host' }
+      case 'remote1':
+        return { border: 'border-l-remote1', text: 'text-remote1' }
+      case 'remote2':
+        return { border: 'border-l-remote2', text: 'text-remote2' }
     }
   }
 
   return (
-    <div style={styles.container}>
-      <div style={styles.card}>
-        <h2 style={styles.title}>Remote App 2 - Todo List</h2>
+    <div className="p-4">
+      <div className="bg-white rounded-lg p-8 shadow border-l-4 border-l-remote2">
+        <h2 className="text-remote2 text-xl font-bold mb-2">
+          Remote App 2 - Todo List
+        </h2>
 
-        {/* Zustand経由のグローバルユーザー表示 */}
         {globalUser && (
-          <p style={styles.dataRow}>
-            <Badge color="#f39c12">Zustand</Badge>
+          <p className="flex items-center gap-2 mb-2 text-gray-800">
+            <Badge variant="zustand">Zustand</Badge>
             Global User: {globalUser}
           </p>
         )}
 
-        <p style={styles.description}>
+        <p className="text-gray-500 mb-6">
           This component is loaded from another micro frontend.
         </p>
 
-        <div style={styles.inputGroup}>
+        <div className="flex gap-2 mb-4">
           <input
-            style={styles.input}
+            className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
             type="text"
             value={input}
-            onChange={e => setInput(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && addTodo()}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addTodo()}
             placeholder="Add a new todo..."
           />
-          <button style={styles.addButton} onClick={addTodo}>
+          <button
+            className="px-4 py-2 bg-remote2 text-white rounded cursor-pointer border-none hover:bg-remote2-light"
+            onClick={addTodo}
+          >
             Add
           </button>
         </div>
 
-        <ul style={styles.list}>
-          {todos.map(todo => (
-            <li key={todo.id} style={styles.item}>
+        <ul className="list-none p-0">
+          {todos.map((todo) => (
+            <li
+              key={todo.id}
+              className="flex items-center gap-2 py-2 border-b border-gray-100"
+            >
               <input
                 type="checkbox"
                 checked={todo.completed}
                 onChange={() => toggleTodo(todo.id)}
+                className="cursor-pointer"
               />
               <span
-                style={{
-                  ...styles.text,
-                  textDecoration: todo.completed ? 'line-through' : 'none',
-                  color: todo.completed ? '#999' : '#333',
-                }}
+                className={`flex-1 flex items-center ${
+                  todo.completed ? 'line-through text-gray-400' : 'text-gray-800'
+                }`}
               >
-                {todo.source === 'event' && <Badge color="#9b59b6">Event</Badge>}
+                {todo.source === 'event' && <Badge variant="event">Event</Badge>}
                 {todo.text}
               </span>
               <button
-                style={styles.deleteButton}
+                className="bg-transparent border-none text-gray-400 cursor-pointer text-lg hover:text-gray-600"
                 onClick={() => deleteTodo(todo.id)}
               >
                 x
@@ -144,168 +161,61 @@ function App() {
         </ul>
 
         {/* Zustand セクション */}
-        <div style={styles.sendSection}>
-          <h3 style={styles.subtitle}>
-            <Badge color="#f39c12">Zustand</Badge>
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <h3 className="flex items-center gap-2 text-gray-800 text-sm mb-2">
+            <Badge variant="zustand">Zustand</Badge>
             Send Message
           </h3>
-          <div style={styles.inputGroup}>
+          <div className="flex gap-2">
             <input
-              style={styles.input}
+              className="flex-1 px-3 py-2 border border-gray-300 rounded text-sm"
               type="text"
               value={zustandMsg}
-              onChange={e => setZustandMsg(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && sendViaZustand()}
+              onChange={(e) => setZustandMsg(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && sendViaZustand()}
               placeholder="Send message via Zustand..."
             />
-            <button style={styles.sendButtonOrange} onClick={sendViaZustand}>
+            <button
+              className="px-4 py-2 bg-badge-zustand text-white rounded cursor-pointer border-none hover:bg-orange-500"
+              onClick={sendViaZustand}
+            >
               Send
             </button>
           </div>
         </div>
 
         {/* Zustand メッセージ一覧 */}
-        <div style={styles.sendSection}>
-          <h3 style={styles.subtitle}>
-            <Badge color="#f39c12">Zustand</Badge>
+        <div className="mt-6 pt-4 border-t border-gray-200">
+          <h3 className="flex items-center gap-2 text-gray-800 text-sm mb-2">
+            <Badge variant="zustand">Zustand</Badge>
             Messages ({messages.length})
           </h3>
-          <div style={styles.messageList}>
+          <div className="max-h-[120px] overflow-y-auto border border-gray-200 rounded p-2">
             {messages.length === 0 ? (
-              <p style={styles.noMessages}>No messages</p>
+              <p className="text-gray-400 text-sm text-center">No messages</p>
             ) : (
-              messages.map(msg => (
-                <div key={msg.id} style={{ ...styles.messageItem, borderLeftColor: getFromColor(msg.from) }}>
-                  <span style={{ ...styles.messageFrom, color: getFromColor(msg.from) }}>{msg.from}</span>
-                  <span>{msg.text}</span>
-                </div>
-              ))
+              messages.map((msg) => {
+                const colors = getFromColor(msg.from)
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex items-center gap-2 p-1.5 border-l-[3px] ${colors.border} mb-1 bg-gray-50 rounded-r text-sm`}
+                  >
+                    <span
+                      className={`font-bold text-xs min-w-[50px] ${colors.text}`}
+                    >
+                      {msg.from}
+                    </span>
+                    <span>{msg.text}</span>
+                  </div>
+                )
+              })
             )}
           </div>
         </div>
       </div>
     </div>
   )
-}
-
-const styles: Record<string, React.CSSProperties> = {
-  container: {
-    padding: '1rem',
-  },
-  card: {
-    background: 'white',
-    borderRadius: '8px',
-    padding: '2rem',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-    borderLeft: '4px solid #e74c3c',
-  },
-  title: {
-    color: '#e74c3c',
-    marginBottom: '0.5rem',
-  },
-  dataRow: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    marginBottom: '0.5rem',
-    color: '#333',
-  },
-  description: {
-    color: '#666',
-    marginBottom: '1.5rem',
-  },
-  inputGroup: {
-    display: 'flex',
-    gap: '0.5rem',
-    marginBottom: '1rem',
-  },
-  input: {
-    flex: 1,
-    padding: '0.5rem',
-    border: '1px solid #ddd',
-    borderRadius: '4px',
-    fontSize: '0.9rem',
-  },
-  addButton: {
-    padding: '0.5rem 1rem',
-    background: '#e74c3c',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-  },
-  list: {
-    listStyle: 'none',
-    padding: 0,
-  },
-  item: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.5rem 0',
-    borderBottom: '1px solid #eee',
-  },
-  text: {
-    flex: 1,
-    display: 'flex',
-    alignItems: 'center',
-  },
-  deleteButton: {
-    background: 'none',
-    border: 'none',
-    color: '#999',
-    cursor: 'pointer',
-    fontSize: '1rem',
-  },
-  sendSection: {
-    marginTop: '1.5rem',
-    paddingTop: '1rem',
-    borderTop: '1px solid #eee',
-  },
-  subtitle: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    color: '#333',
-    fontSize: '0.9rem',
-    marginBottom: '0.5rem',
-  },
-  sendButtonOrange: {
-    padding: '0.5rem 1rem',
-    background: '#f39c12',
-    color: 'white',
-    border: 'none',
-    borderRadius: '4px',
-    cursor: 'pointer',
-  },
-  messageList: {
-    maxHeight: '120px',
-    overflowY: 'auto',
-    border: '1px solid #eee',
-    borderRadius: '4px',
-    padding: '0.5rem',
-  },
-  noMessages: {
-    color: '#999',
-    fontSize: '0.85rem',
-    textAlign: 'center',
-  },
-  messageItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '0.5rem',
-    padding: '0.3rem',
-    borderLeft: '3px solid',
-    marginBottom: '0.25rem',
-    background: '#f9f9f9',
-    borderRadius: '0 4px 4px 0',
-    fontSize: '0.85rem',
-  },
-  messageFrom: {
-    fontWeight: 'bold',
-    fontSize: '0.75rem',
-    minWidth: '50px',
-  },
 }
 
 export default App
