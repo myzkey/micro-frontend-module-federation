@@ -136,6 +136,77 @@ function App() {
 import { Button, formatDate, useGlobalStore } from '@mf/shared'
 ```
 
+## Tailwind CSS 構成
+
+### 共有 Preset パターン
+
+`packages/shared` に Tailwind の preset（テーマ設定）を配置し、各アプリで読み込む構成:
+
+```
+packages/shared/
+└── tailwind.preset.js    # 共有テーマ（カラー、フォント等）
+
+apps/*/
+├── tailwind.config.js    # preset を読み込む
+├── postcss.config.js
+└── src/index.css         # @tailwind directives
+```
+
+### 共有 Preset の設定
+
+`packages/shared/tailwind.preset.js`:
+
+```js
+export default {
+  theme: {
+    extend: {
+      colors: {
+        // アプリ識別カラー
+        host: { DEFAULT: '#1a1a2e', light: '#2d2d4a' },
+        remote1: { DEFAULT: '#3498db', light: '#5dade2' },
+        remote2: { DEFAULT: '#e74c3c', light: '#ec7063' },
+        // バッジカラー
+        badge: {
+          props: '#2ecc71',
+          event: '#9b59b6',
+          zustand: '#f39c12',
+        },
+      },
+    },
+  },
+}
+```
+
+### 各アプリでの読み込み
+
+`apps/*/tailwind.config.js`:
+
+```js
+import sharedPreset from '@mf/shared/tailwind.preset'
+
+export default {
+  presets: [sharedPreset],
+  content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
+}
+```
+
+### 使用例
+
+```tsx
+// 共有カラーを使用
+<div className="bg-host text-white">Host</div>
+<div className="bg-remote1 hover:bg-remote1-light">Remote1</div>
+<span className="bg-badge-zustand text-white text-xs px-2 py-0.5 rounded">
+  ZUSTAND
+</span>
+```
+
+### メリット
+
+- **テーマの一貫性**: 全アプリで同じカラーパレット・フォントを使用
+- **独立ビルド**: 各アプリが独立して Tailwind をビルド可能
+- **拡張性**: アプリ固有のスタイルも追加可能
+
 ## マイクロフロントエンド間のデータ共有
 
 3つの方法を実装しています。UIのバッジで共有方法が識別できます。
@@ -235,4 +306,5 @@ remotes: {
 - **フレームワーク**: React 18
 - **Module Federation**: @originjs/vite-plugin-federation
 - **状態管理**: Zustand
+- **スタイリング**: Tailwind CSS (共有 preset パターン)
 - **言語**: TypeScript
